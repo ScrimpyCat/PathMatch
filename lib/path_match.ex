@@ -56,9 +56,11 @@ defmodule PathMatch do
     defp path_match(path, [match|glob], precompiled, false), do: path_match(path, [match_to_regex(match)|glob], precompiled, true)
     defp path_match(_, _, _, _), do: false
 
+    @spec match?(String.t | [String.t | Regex.t], String.t) :: boolean
     def match?(glob, path) when is_list(glob), do: path_match(Path.split(path), glob, true)
     def match?(glob, path), do: path_match(Path.split(path), Path.split(glob))
 
+    @spec compile(String.t) :: [String.t | Regex.t]
     def compile(glob) do
         Path.split(glob)
         |> Enum.map(fn
