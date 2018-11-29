@@ -29,32 +29,42 @@ defmodule PathMatch do
         match_to_regex(match, { [literal, c], [special, c] }, false, wildcard)
     end
 
-    defp path_match(path, glob, processed \\ false)
-    defp path_match([], [], _), do: true
-    defp path_match([], ["**"], _), do: true
-    defp path_match([], _, _), do: false
-    defp path_match([_|path], ["**", "*"|glob], _), do: path_match(path, ["**"|glob], false)
-    defp path_match([component|path], ["**", component|glob], _), do: path_match(path, glob, false)
-    defp path_match([component|path], ["**", match = %Regex{}|glob], _) do
+    defp path_match(path, glob, precompiled \\ false, processed \\ false)
+    defp path_match([], [], _, _), do: true
+    defp path_match([], ["**"], _, _), do: true
+    defp path_match([], _, _, _), do: false
+    defp path_match([_|path], ["**", "*"|glob], precompiled, _), do: path_match(path, ["**"|glob], precompiled, precompiled)
+    defp path_match([component|path], ["**", component|glob], precompiled, _), do: path_match(path, glob, precompiled, precompiled)
+    defp path_match([component|path], ["**", match = %Regex{}|glob], precompiled, _) do
         if Regex.match?(match, component) do
-            path_match(path, glob, false)
+            path_match(path, glob, precompiled, precompiled)
         else
-            path_match(path, ["**", match|glob], true)
+            path_match(path, ["**", match|glob], precompiled, true)
         end
     end
-    defp path_match(path, ["**", match|glob], false), do: path_match(path, ["**", match_to_regex(match)|glob], true)
-    defp path_match([_|path], glob = ["**"|_], processed), do: path_match(path, glob, processed)
-    defp path_match([_|path], ["*"|glob], _), do: path_match(path, glob, false)
-    defp path_match([component|path], [component|glob], _), do: path_match(path, glob, false)
-    defp path_match([component|path], [match = %Regex{}|glob], _) do
+    defp path_match(path, ["**", match|glob], precompiled, false), do: path_match(path, ["**", match_to_regex(match)|glob], precompiled, true)
+    defp path_match([_|path], glob = ["**"|_], precompiled, processed), do: path_match(path, glob, precompiled, processed)
+    defp path_match([_|path], ["*"|glob], precompiled, _), do: path_match(path, glob, precompiled, precompiled)
+    defp path_match([component|path], [component|glob], precompiled, _), do: path_match(path, glob, precompiled, precompiled)
+    defp path_match([component|path], [match = %Regex{}|glob], precompiled, _) do
         if Regex.match?(match, component) do
-            path_match(path, glob, false)
+            path_match(path, glob, precompiled, precompiled)
         else
             false
         end
     end
-    defp path_match(path, [match|glob], false), do: path_match(path, [match_to_regex(match)|glob], true)
-    defp path_match(_, _, _), do: false
+    defp path_match(path, [match|glob], precompiled, false), do: path_match(path, [match_to_regex(match)|glob], precompiled, true)
+    defp path_match(_, _, _, _), do: false
 
+    def match?(glob, path) when is_list(glob), do: path_match(Path.split(path), glob, true)
     def match?(glob, path), do: path_match(Path.split(path), Path.split(glob))
+
+    def compile(glob) do
+        Path.split(glob)
+        |> Enum.map(fn
+            "**" -> "**"
+            "*" -> "*"
+            match -> if(Regex.match?(~r/((?<=[^\\])|^)(\*|\?|\[.*?(?<=[^\\])\]|\{.*?(?<=[^\\])\})/, match), do: match_to_regex(match), else: match)
+        end)
+    end
 end
